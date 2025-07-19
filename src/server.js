@@ -35,9 +35,23 @@ mongoose.connect(env.MONGODB_URI, {
     console.log('MongoDB connected');
     await seedDatabase();
   })
-  .catch((err) => console.error('MongoDB connection error:', err));
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+    console.log('Environment Variables:');
+    console.log('MONGODB_URI:', env.MONGODB_URI);
+    console.log('JWT_SECRET:', env.JWT_SECRET );
+    console.log('UPLOAD_DIR:', env.UPLOAD_DIR);
+    console.log('MAX_FILE_SIZE:', env.MAX_FILE_SIZE);
+    console.log('PORT:', env.PORT);
+  });
 
 const PORT = env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log('Environment Variables:');
+  console.log('MONGODB_URI:', env.MONGODB_URI);
+  console.log('JWT_SECRET:', env.JWT_SECRET );
+  console.log('UPLOAD_DIR:', env.UPLOAD_DIR);
+  console.log('MAX_FILE_SIZE:', env.MAX_FILE_SIZE);
+  console.log('PORT:', env.PORT);
 }); 
