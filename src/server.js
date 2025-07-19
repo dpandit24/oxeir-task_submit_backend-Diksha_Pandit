@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const { seedDatabase } = require('./utils/seeder');
+const { setupSupabaseBucket } = require('./utils/supabaseSetup');
 
 const projectRoutes = require('./routes/project');
 const authRoutes = require('./routes/auth');
@@ -34,6 +35,13 @@ mongoose.connect(env.MONGODB_URI, {
   .then(async () => {
     console.log('MongoDB connected');
     await seedDatabase();
+    
+    // Setup Supabase bucket if configuration is available
+    if (env.SUPABASE_URL && env.SUPABASE_KEY) {
+      await setupSupabaseBucket();
+    } else {
+      console.log('Supabase configuration not found, skipping bucket setup');
+    }
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);

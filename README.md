@@ -28,6 +28,7 @@ This is the backend API for the Project Submission & Evaluation platform, built 
 - **Helmet.js** for security headers
 - **CORS** configuration for cross-origin requests
 - **File upload security** (type validation, size limits, sanitization)
+- **Supabase storage integration** (cloud file storage with signed URLs)
 
 #### **Data Validation & Sanitization**
 - **Joi validation** for request body and query parameters
@@ -98,6 +99,27 @@ JWT_SECRET=your_jwt_secret
 UPLOAD_DIR=uploads
 MAX_FILE_SIZE=10485760
 PORT=5000
+
+# Supabase Configuration (for file uploads)
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your_supabase_anon_key_here
+```
+
+**Note**: You need to set up a Supabase project and create a storage bucket named `uploads` for file uploads to work.
+
+### 3.1. Supabase Setup
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+2. **Get your project URL and anon key** from the project settings
+3. **Create a storage bucket** named `uploads` in your Supabase dashboard
+4. **Set bucket permissions** to private (signed URLs will be used for access)
+5. **Add the credentials** to your `.env` file
+
+The server will automatically create the bucket if it doesn't exist when you start the application.
+
+**Test Supabase Integration:**
+```bash
+npm run test-supabase
 ```
 
 ### 4. Start MongoDB
@@ -125,7 +147,7 @@ The API server will be available at `http://localhost:5000`
 - `GET /api/course/:id` — Get course by ID
 
 ### Projects
-- `POST /api/project/submit` — Learner submits project
+- `POST /api/project/submit` — Learner submits project (file upload to Supabase)
 - `GET /api/project/dashboard` — Instructor dashboard stats
 - `GET /api/project/submissions` — Filtered submissions (course, status)
 - `GET /api/project/:courseId` — Instructor fetches submissions by course

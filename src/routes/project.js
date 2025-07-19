@@ -5,27 +5,15 @@ const fs = require('fs');
 const Joi = require('joi');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const projectService = require('../services/projectService');
+const fileUploadService = require('../services/fileUploadService');
+const { addSignedUrlsToSubmissions } = require('../utils/fileUrlHelper');
 const env = require('../utils/env');
 
 const router = express.Router();
 
-// Multer config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadsDir = path.join(__dirname, '..', '..', env.UPLOAD_DIR);
-    // Ensure directory exists
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-  },
-});
+// Multer config - using memory storage for Supabase upload
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: env.MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
     if (file.mimetype !== 'application/pdf') {
@@ -63,7 +51,11 @@ router.get('/submissions', authenticateToken, authorizeRoles('instructor'), asyn
   try {
     const { courseId, status } = req.query;
     const submissions = await projectService.getSubmissions({ courseId, status });
-    res.json(submissions);
+    
+    // Add signed URLs to submissions
+    const submissionsWithUrls = await addSignedUrlsToSubmissions(submissions);
+    
+    res.json(submissionsWithUrls);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -74,18 +66,32 @@ router.post('/submit', authenticateToken, authorizeRoles('learner'), upload.sing
   const { error } = submitSchema.validate(req.body);
   if (error) return res.status(400).json({ message: error.details[0].message });
   if (!req.file) return res.status(400).json({ message: 'File is required' });
-  try {
-    const submission = await projectService.submitProject({
-      userId: req.user.id,
-      courseId: req.body.courseId,
-      fileUrl: `/uploads/${req.file.filename}`,
-      githubLink: req.body.githubLink,
-    });
-    res.status(201).json({ message: 'Project submitted', submission });
+  
+      try {
+      // Upload file to Supabase
+      const filePath = await fileUploadService.uploadFile(req.file, 'uploads', 'files');
+      
+      const submission = await projectService.submitProject({
+        userId: req.user.id,
+        courseId: req.body.courseId,
+        fileUrl: filePath, // Store only the file path, not the full URL
+        githubLink: req.body.githubLink,
+      });
+      
+      // Add signed URL to the response
+      const submissionWithUrl = await addSignedUrlsToSubmissions(submission);
+      
+      res.status(201).json({ 
+        message: 'Project submitted successfully', 
+        submission: submissionWithUrl
+      });
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error in project submission:', err);
+    res.status(500).json({ message: 'Server error: ' + err.message });
   }
 });
+
+
 
 // POST /api/project/evaluate
 router.post('/evaluate', authenticateToken, authorizeRoles('instructor'), async (req, res) => {
@@ -93,7 +99,11 @@ router.post('/evaluate', authenticateToken, authorizeRoles('instructor'), async 
   if (error) return res.status(400).json({ message: error.details[0].message });
   try {
     const submission = await projectService.evaluateSubmission(req.body);
-    res.json({ message: 'Evaluation submitted', submission });
+    
+    // Add signed URL to submission
+    const submissionWithUrl = await addSignedUrlsToSubmissions(submission);
+    
+    res.json({ message: 'Evaluation submitted', submission: submissionWithUrl });
   } catch (err) {
     res.status(404).json({ message: err.message });
   }
@@ -103,7 +113,11 @@ router.post('/evaluate', authenticateToken, authorizeRoles('instructor'), async 
 router.get('/:courseId', authenticateToken, authorizeRoles('instructor'), async (req, res) => {
   try {
     const submissions = await projectService.getSubmissionsByCourse(req.params.courseId);
-    res.json(submissions);
+    
+    // Add signed URLs to submissions
+    const submissionsWithUrls = await addSignedUrlsToSubmissions(submissions);
+    
+    res.json(submissionsWithUrls);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -116,8 +130,15 @@ router.get('/evaluation/:userId', authenticateToken, async (req, res) => {
   }
   try {
     const submissions = await projectService.getEvaluationsByUser(req.params.userId);
-    res.json(submissions);
+    console.log('Raw submissions:', submissions);
+    
+    // Add signed URLs to submissions
+    const submissionsWithUrls = await addSignedUrlsToSubmissions(submissions);
+    console.log('Submissions with URLs:', submissionsWithUrls);
+    
+    res.json(submissionsWithUrls);
   } catch (err) {
+    console.error('Error in evaluation endpoint:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
